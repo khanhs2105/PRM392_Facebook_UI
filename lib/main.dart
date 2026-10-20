@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
+import 'services/auth_services.dart';
+import 'screens/home_screen.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final loggedIn = await AuthService().isLoggedIn();
+  runApp(MyApp(loggedIn: loggedIn));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final bool loggedIn;
+  const MyApp({super.key, required this.loggedIn});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: const LoginPage(),
+      home: loggedIn ? const HomeScreen() : const LoginPage(),
     );
   }
 }
@@ -28,7 +33,30 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController passwordController = TextEditingController();
 
   final Color facebookBlue = const Color(0xFF4267A9);
+  bool _loading = false;
 
+  Future<void> _login() async {
+    final user = emailController.text.trim();
+    final pass = passwordController.text;
+    if (user.isEmpty || pass.isEmpty) {
+      _showError('Nhập đủ tài khoản và mật khẩu');
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      await AuthService().login(user, pass);
+      if (!mounted) return;
+      Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+    } catch (e) {
+      _showError(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _showError(String msg) => ScaffoldMessenger.of(context)
+      .showSnackBar(SnackBar(content: Text(msg)));
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -113,10 +141,7 @@ class _LoginPageState extends State<LoginPage> {
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
-                  onPressed: () {
-                    print(emailController.text);
-                    print(passwordController.text);
-                  },
+                    onPressed: _loading ? null : _login,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF5B7DB5),
                     foregroundColor: Colors.white70,
@@ -125,10 +150,13 @@ class _LoginPageState extends State<LoginPage> {
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  child: const Text(
-                    'LOG IN',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                  ),
+                    child: _loading
+                        ? const SizedBox(
+                        width: 22, height: 22,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                        : const Text('LOG IN',
+                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
                 ),
               ),
 
